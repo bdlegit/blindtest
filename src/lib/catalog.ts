@@ -26,6 +26,11 @@ export type Category = {
   gradient: [string, string];
   /** « titre » désigne l'œuvre (film, jeu…) plutôt que la chanson */
   workTitle?: boolean;
+  /**
+   * Playlists éditoriales Deezer (« 80s Hits », « Soirée 90 », « Rapstars »…) qui enrichissent
+   * la catégorie : plusieurs centaines de titres en plus des morceaux choisis à la main.
+   */
+  playlists?: number[];
   tracks: SeedTrack[];
 };
 
@@ -41,6 +46,7 @@ export const CATEGORIES: Category[] = [
     label: "Années 80",
     emoji: "📼",
     gradient: ["#ff2bd6", "#7b2cff"],
+    playlists: [867825522, 1913763402, 1743878062, 791349661, 1163842311, 10727755642, 10704004302, 10702272842, 10701318182, 10699860242, 10698676702, 10685554042, 10684010922, 10678781122, 10133312182],
     tracks: [
       t("Michael Jackson", "Billie Jean"),
       t("a-ha", "Take On Me", { aa: ["aha"] }),
@@ -71,6 +77,7 @@ export const CATEGORIES: Category[] = [
     label: "Années 90",
     emoji: "💿",
     gradient: ["#00e5ff", "#7b2cff"],
+    playlists: [878989033, 2322259622, 1682663671, 1051470831, 1251125011, 8311123682, 9931111742],
     tracks: [
       t("Nirvana", "Smells Like Teen Spirit"),
       t("Spice Girls", "Wannabe", { aa: ["The Spice Girls"] }),
@@ -99,6 +106,7 @@ export const CATEGORIES: Category[] = [
     label: "Années 2000",
     emoji: "📱",
     gradient: ["#b6ff3b", "#00b3ff"],
+    playlists: [248297032, 1977689462, 1560256341, 713806955, 751764391, 11837091441, 11837088801, 11837078821, 5361722742],
     tracks: [
       t("Beyoncé", "Crazy in Love"),
       t("OutKast", "Hey Ya!", { ta: ["Hey Ya"] }),
@@ -129,6 +137,7 @@ export const CATEGORIES: Category[] = [
     label: "Années 2010",
     emoji: "🎧",
     gradient: ["#ff7a00", "#ff2bd6"],
+    playlists: [14917741483, 715215865, 2051712324, 1162725851, 5310925582, 1488687901, 920047905],
     tracks: [
       t("Pharrell Williams", "Happy", { aa: ["Pharrell"] }),
       t("Mark Ronson", "Uptown Funk", { aa: ["Bruno Mars"] }),
@@ -159,6 +168,7 @@ export const CATEGORIES: Category[] = [
     label: "Années 2020",
     emoji: "⚡",
     gradient: ["#7b2cff", "#00e5ff"],
+    playlists: [13650084141, 11915740641, 8424603822, 9690987002, 741188545],
     tracks: [
       t("Dua Lipa", "Levitating"),
       t("Harry Styles", "As It Was"),
@@ -188,6 +198,7 @@ export const CATEGORIES: Category[] = [
     label: "Rap français",
     emoji: "🎤",
     gradient: ["#ff2b4f", "#7b2cff"],
+    playlists: [1182010551, 4676814864, 5175061384, 9563400362, 3272614282, 14055903761],
     tracks: [
       t("IAM", "Je danse le Mia"),
       t("NTM", "La fièvre", { aa: ["Suprême NTM", "Supreme NTM"] }),
@@ -217,6 +228,7 @@ export const CATEGORIES: Category[] = [
     label: "Rap US",
     emoji: "🗽",
     gradient: ["#ffd400", "#ff2bd6"],
+    playlists: [1724212365, 4676818664, 7662551722, 12547421383, 1976915302, 2979302822, 15127953583],
     tracks: [
       t("Eminem", "Without Me"),
       t("50 Cent", "In Da Club", { aa: ["Fifty Cent"] }),
@@ -246,6 +258,7 @@ export const CATEGORIES: Category[] = [
     label: "Pop internationale",
     emoji: "🌍",
     gradient: ["#ff2bd6", "#ffb3f0"],
+    playlists: [1036183001, 8326097522, 8282573142, 8512471762, 1282483245],
     tracks: [
       t("Michael Jackson", "Thriller"),
       t("Madonna", "Hung Up"),
@@ -275,6 +288,7 @@ export const CATEGORIES: Category[] = [
     label: "Rock",
     emoji: "🎸",
     gradient: ["#ff2b2b", "#ff9f1c"],
+    playlists: [1306931615, 8621268482, 1728093421, 1419215845, 847814561, 761604441],
     tracks: [
       t("Queen", "Bohemian Rhapsody"),
       t("AC/DC", "Highway to Hell", { aa: ["ACDC", "AC DC"] }),
@@ -326,6 +340,22 @@ export const CATEGORIES: Category[] = [
       t("Mark Snow", "X-Files", { q: "Mark Snow The X-Files theme", ta: ["The X Files", "X Files"] }),
       t("Celine Dion", "Titanic", { q: "Celine Dion My Heart Will Go On", aa: ["Céline Dion", "James Horner"] }),
       t("Survivor", "Rocky III", { q: "Survivor Eye of the Tiger", ta: ["Rocky 3", "Rocky"] }),
+      t("Nino Rota", "Le Parrain", { q: "Nino Rota The Godfather Love Theme", ta: ["The Godfather", "Parrain"], m: ["godfather", "parrain"] }),
+      t("John Williams", "Les Dents de la mer", { q: "John Williams Jaws Main Title", ta: ["Jaws"], m: ["jaws", "dents de la mer"] }),
+      t("John Williams", "Indiana Jones", { q: "John Williams Raiders March", m: ["raiders", "indiana"] }),
+      t("John Williams", "E.T.", { q: "John Williams E.T. Flying Theme", ta: ["ET", "E.T. l'extra-terrestre"], m: ["e t", "flying theme"] }),
+      t("Hans Zimmer", "Gladiator", { q: "Hans Zimmer Now We Are Free Gladiator", aa: ["Lisa Gerrard"], m: ["gladiator", "now we are free"] }),
+      t("Howard Shore", "Le Seigneur des anneaux", { q: "Howard Shore Concerning Hobbits", ta: ["The Lord of the Rings", "Seigneur des anneaux"], m: ["hobbits", "lord of the rings", "fellowship"] }),
+      t("Hans Zimmer", "Interstellar", { q: "Hans Zimmer Interstellar First Step", m: ["interstellar"] }),
+      t("Ray Parker Jr.", "SOS Fantômes", { q: "Ray Parker Jr Ghostbusters", ta: ["Ghostbusters", "SOS Fantomes"], aa: ["Ray Parker Junior"], m: ["ghostbusters"] }),
+      t("Bill Medley", "Dirty Dancing", { q: "The Time of My Life Bill Medley Jennifer Warnes", aa: ["Jennifer Warnes"], m: ["time of my life"] }),
+      t("John Travolta", "Grease", { q: "You're the One That I Want John Travolta Olivia Newton-John", aa: ["Olivia Newton-John"], m: ["grease", "the one that i want"] }),
+      t("Dick Dale", "Pulp Fiction", { q: "Dick Dale Misirlou", m: ["misirlou", "pulp fiction"] }),
+      t("Éric Serra", "Le Grand Bleu", { q: "Eric Serra Le Grand Bleu", aa: ["Eric Serra"], m: ["grand bleu", "big blue"] }),
+      t("Dave Porter", "Breaking Bad", { q: "Dave Porter Breaking Bad Main Title Theme", m: ["breaking bad"] }),
+      t("Manu Pilas", "La Casa de Papel", { q: "Manu Pilas Bella Ciao", ta: ["Money Heist", "Bella Ciao"], m: ["bella ciao", "casa de papel"] }),
+      t("Nick Cave & The Bad Seeds", "Peaky Blinders", { q: "Nick Cave Red Right Hand", aa: ["Nick Cave"], m: ["red right hand", "peaky"] }),
+      t("Jung Jae-il", "Squid Game", { q: "Squid Game Way Back Then Jung Jae Il", aa: ["Jung Jae Il"], m: ["way back then", "squid game"] }),
     ],
   },
   {
@@ -354,6 +384,16 @@ export const CATEGORIES: Category[] = [
       t("Disney", "Pocahontas", { q: "L'air du vent Pocahontas" }),
       t("Chantal Goya", "Bécassine", { q: "Chantal Goya Bécassine c'est ma cousine", ta: ["Becassine c est ma cousine"] }),
       t("Dorothée", "Club Dorothée", { q: "Dorothée Hou la menteuse", ta: ["Hou la menteuse"], aa: ["Dorothee"] }),
+      t("Le Groupe Apollo", "Les Mystérieuses Cités d'or", { q: "Les mystérieuses cités d'or générique", ta: ["Cités d'or", "Les Cites d or"], m: ["cites d or"] }),
+      t("Noam", "Goldorak", { q: "Goldorak générique Noam", aa: ["Noam Kaniel"], m: ["goldorak"] }),
+      t("Disney", "Les Aristochats", { q: "Tout le monde veut devenir un cat", ta: ["Aristochats", "The Aristocats"], m: ["devenir un cat", "aristochats", "aristocats"] }),
+      t("Disney", "Raiponce", { q: "Raiponce Je veux y croire", ta: ["Tangled"], m: ["raiponce", "tangled", "je veux y croire"] }),
+      t("Shakira", "Zootopie", { q: "Shakira Try Everything", ta: ["Zootopia", "Zootopie"], m: ["try everything", "zootop"] }),
+      t("Disney", "Coco", { q: "Ne m'oublie pas Coco", m: ["coco", "remember me", "oublie pas"] }),
+      t("Jacques Cardona", "Inspecteur Gadget", { q: "Inspecteur Gadget générique", ta: ["Inspector Gadget"], aa: ["Shuki Levy"], m: ["gadget"] }),
+      t("Richard Simon", "Capitaine Flam", { q: "Capitaine Flam générique", aa: ["Jean-Jacques Debout"], m: ["capitaine flam"] }),
+      t("Hiroshi Kitadani", "One Piece", { q: "One Piece We Are Hiroshi Kitadani", m: ["one piece", "we are"] }),
+      t("Ikimono-gakari", "Naruto", { q: "Ikimono-gakari Blue Bird", ta: ["Naruto Shippuden"], aa: ["Ikimonogakari"], m: ["blue bird", "naruto"] }),
     ],
   },
   {
@@ -381,6 +421,17 @@ export const CATEGORIES: Category[] = [
       t("Hideki Naganuma", "Jet Set Radio", { q: "Hideki Naganuma Let Mom Sleep" }),
       t("Riot Games", "League of Legends", { q: "Imagine Dragons Warriors League of Legends", ta: ["LoL"], aa: ["Imagine Dragons"] }),
       t("Michael Salvatori", "Destiny", { q: "Destiny The Traveler Michael Salvatori" }),
+      t("Jesper Kyd", "Assassin's Creed", { q: "Jesper Kyd Ezio's Family", m: ["ezio", "assassin"] }),
+      t("Sonya Belousova", "The Witcher", { q: "Toss a Coin to Your Witcher", ta: ["Witcher"], m: ["toss a coin", "witcher"] }),
+      t("Capcom", "Street Fighter II", { q: "Street Fighter II Guile Theme", ta: ["Street Fighter"], m: ["guile", "street fighter"] }),
+      t("Namco", "Pac-Man", { q: "Pac-Man theme", ta: ["Pacman"], m: ["pac man", "pacman"] }),
+      t("David Wise", "Donkey Kong Country", { q: "David Wise DK Island Swing", ta: ["Donkey Kong"], m: ["dk island", "donkey kong"] }),
+      t("Epic Games", "Fortnite", { q: "Fortnite Lobby Music", m: ["fortnite"] }),
+      t("Kazumi Totaka", "Animal Crossing", { q: "Animal Crossing New Horizons main theme", m: ["animal crossing"] }),
+      t("Kazumi Totaka", "Wii Sports", { q: "Wii Sports Theme", ta: ["Wii"], m: ["wii sports"] }),
+      t("Masahiro Andoh", "Gran Turismo", { q: "Moon Over the Castle Gran Turismo", m: ["moon over the castle", "gran turismo"] }),
+      t("Jonathan Coulton", "Portal", { q: "Jonathan Coulton Still Alive Portal", m: ["still alive", "portal"] }),
+      t("Daniel Lanois", "Red Dead Redemption 2", { q: "Daniel Lanois That's the Way It Is", ta: ["Red Dead Redemption", "Red Dead"], m: ["red dead", "that s the way it is"] }),
     ],
   },
   {
@@ -406,6 +457,14 @@ export const CATEGORIES: Category[] = [
       t("Pierre Bachelet", "Thalassa", { q: "Thalassa generique" }),
       t("Jean-Jacques Goldman", "Les Enfoirés", { q: "Les Enfoirés La chanson des restos", ta: ["Restos du coeur", "La chanson des restos"], aa: ["Les Enfoirés", "Les Enfoires"] }),
       t("Michael Giacchino", "Lost", { q: "Lost main title Michael Giacchino" }),
+      t("Keith Strachan", "Qui veut gagner des millions ?", { q: "Who Wants to Be a Millionaire theme", ta: ["Qui veut gagner des millions", "Who Wants to Be a Millionaire"], m: ["millionaire", "millions"] }),
+      t("Barry De Vorzon", "Les Feux de l'amour", { q: "Nadia's Theme Barry De Vorzon", ta: ["The Young and the Restless", "Feux de l amour"], m: ["nadia", "young and the restless", "feux de l amour"] }),
+      t("Lazlo Bane", "Scrubs", { q: "Lazlo Bane Superman", m: ["superman", "scrubs"] }),
+      t("The Solids", "How I Met Your Mother", { q: "The Solids Hey Beautiful", ta: ["HIMYM"], m: ["hey beautiful", "how i met"] }),
+      t("Jay Ferguson", "The Office", { q: "The Office theme Jay Ferguson", m: ["office"] }),
+      t("Jerrold Immel", "Dallas", { q: "Dallas theme Jerrold Immel", m: ["dallas"] }),
+      t("They Might Be Giants", "Malcolm", { q: "They Might Be Giants Boss of Me", ta: ["Malcolm in the Middle"], m: ["boss of me", "malcolm"] }),
+      t("Scott Lohr", "Sauvés par le gong", { q: "Saved by the Bell theme", ta: ["Saved by the Bell", "Sauves par le gong"], m: ["saved by the bell", "sauves par le gong"] }),
     ],
   },
   {
@@ -413,6 +472,7 @@ export const CATEGORIES: Category[] = [
     label: "Musiques françaises",
     emoji: "🥖",
     gradient: ["#00b3ff", "#ff2b4f"],
+    playlists: [791349661, 1051470831, 713806955, 1162725851, 821019291, 944752975],
     tracks: [
       t("Édith Piaf", "La Vie en rose", { aa: ["Edith Piaf", "Piaf"] }),
       t("Joe Dassin", "Les Champs-Élysées", { ta: ["Champs Elysees"] }),
@@ -443,6 +503,7 @@ export const CATEGORIES: Category[] = [
     label: "Hits incontournables",
     emoji: "🔥",
     gradient: ["#ff2bd6", "#ffd400"],
+    playlists: [2097558104, 3631248842, 7456464544, 2015058202, 867825522, 878989033, 248297032, 14917741483],
     tracks: [
       t("Queen", "Don't Stop Me Now"),
       t("Michael Jackson", "Beat It"),

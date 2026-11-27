@@ -1,11 +1,12 @@
 // Vérifie que chaque morceau du catalogue a bien un extrait Deezer.
-// Usage : npm run check:catalog
+// Usage : npm run check:catalog [-- films games …]
 import { CATEGORIES } from "../src/lib/catalog";
 import { resolveSeed } from "../src/lib/server/tracks";
 
 async function main() {
   let missing = 0;
-  for (const cat of CATEGORIES) {
+  const only = process.argv.slice(2);
+  for (const cat of CATEGORIES.filter((c) => !only.length || only.includes(c.id))) {
     const results = await Promise.all(
       cat.tracks.map(async (s) => [s, await resolveSeed(s, !!cat.workTitle)] as const),
     );
