@@ -225,7 +225,7 @@ export default function CreatePage() {
                       >
                         <div className="text-2xl">{c.emoji}</div>
                         <div className={`mt-2 text-sm font-bold leading-tight ${on ? "text-white" : ""}`}>{c.label}</div>
-                        <div className={`text-xs ${on ? "text-white/80" : "text-muted"}`}>{c.count} titres</div>
+                        <div className={`text-xs ${on ? "text-white/80" : "text-muted"}`}>{c.approx ? `${c.count}+` : c.count} titres</div>
                         {on && <span className="absolute right-3 top-3 text-sm">✓</span>}
                       </motion.button>
                     );

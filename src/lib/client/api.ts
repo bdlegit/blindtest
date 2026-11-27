@@ -55,7 +55,7 @@ export const api = {
       games: { id: string; room_name: string; player_count: number; rounds: number; finished_at: string; podium: { nickname: string; avatar: string; color: string; score: number }[] }[];
     }>("/api/rooms/recent"),
   categories: () =>
-    request<{ categories: { id: string; label: string; emoji: string; gradient: [string, string]; count: number }[] }>(
+    request<{ categories: { id: string; label: string; emoji: string; gradient: [string, string]; count: number; approx: boolean }[] }>(
       "/api/categories",
     ),
   // ── bibliothèque
