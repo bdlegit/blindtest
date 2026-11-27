@@ -56,3 +56,20 @@ describe("isMatch", () => {
     expect(checkGuess("c'est u3", { title: "One", artist: "U2" }).artist).toBe(false);
   });
 });
+
+import { artistAliases, cleanTitle } from "../src/lib/titles";
+
+describe("titres des playlists", () => {
+  it("retire les mentions de version mais garde les sous-titres", () => {
+    expect(cleanTitle("Take on Me (2017 Remaster)")).toBe("Take on Me");
+    expect(cleanTitle("Billie Jean - Single Version")).toBe("Billie Jean");
+    expect(cleanTitle("Chocolat (feat. Awa Imani)")).toBe("Chocolat");
+    expect(cleanTitle("Sweet Dreams (Are Made of This)")).toBe("Sweet Dreams (Are Made of This)");
+    expect(cleanTitle("Swimming Pools (Drank)")).toBe("Swimming Pools (Drank)");
+  });
+  it("accepte l'artiste principal d'un duo ou d'un groupe", () => {
+    expect(artistAliases("Bob Marley & The Wailers")).toEqual(["Bob Marley"]);
+    expect(artistAliases("Bigflo & Oli")).toEqual(["Bigflo"]);
+    expect(artistAliases("Daft Punk")).toEqual([]);
+  });
+});

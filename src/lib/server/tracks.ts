@@ -1,9 +1,10 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { CATEGORIES, CATEGORY_BY_ID, type SeedTrack } from "../catalog";
-import { deezer } from "../audio/deezer";
+import { CATEGORIES, CATEGORY_BY_ID, type Category, type SeedTrack } from "../catalog";
+import { deezer, playlistTracks, type PlaylistTrack } from "../audio/deezer";
 import type { TrackCandidate } from "../audio/types";
 import { isMatch, normalize } from "../match";
+import { artistAliases, cleanTitle } from "../titles";
 import type { Choice, GameSettings } from "../game";
 import { admin, HttpError, must } from "./supabase";
 
@@ -86,21 +87,79 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
 }
 
 type Pending = Omit<GameTrack, "choices" | "correct_choice">;
+type Decoy = { title: string; artist: string; category: string | null };
 
-async function fromThemes(categories: string[], wanted: number, duration: number): Promise<Pending[]> {
+/** Popularité Deezer minimale (0 à 1 000 000) pour un titre venant d'une playlist. */
+const MIN_RANK = 450_000;
+/** Nombre de playlists tirées au hasard par catégorie et par partie (limite les appels à Deezer). */
+const PLAYLISTS_PER_CATEGORY = 3;
+/** Un titre joué récemment n'est reproposé qu'en dernier recours. */
+const RECENT_DAYS = 30;
+
+type Candidate =
+  | { kind: "seed"; seed: SeedTrack; cat: Category; k: string }
+  | { kind: "ready"; track: PlaylistTrack; cat: Category; k: string };
+
+async function recentlyPlayed(): Promise<Set<string>> {
+  const since = new Date(Date.now() - RECENT_DAYS * 86_400_000).toISOString();
+  const rooms = must(
+    await admin().from("rooms").select("id").gte("created_at", since).order("created_at", { ascending: false }).limit(150),
+    "historique des titres",
+  ) as { id: string }[];
+  if (!rooms.length) return new Set();
+  const rows = must(
+    await admin().from("room_tracks").select("title,artist").in("room_id", rooms.map((r) => r.id)),
+    "historique des titres",
+  ) as { title: string; artist: string }[];
+  return new Set(rows.map((r) => key(r.artist, r.title)));
+}
+
+async function candidatesFor(cat: Category): Promise<Candidate[]> {
+  const out: Candidate[] = cat.tracks.map((seed) => ({ kind: "seed", seed, cat, k: key(seed.artist, seed.title) }));
+  for (const id of shuffle(cat.playlists ?? []).slice(0, PLAYLISTS_PER_CATEGORY)) {
+    try {
+      for (const t of await playlistTracks(id)) {
+        if (t.rank < MIN_RANK || !t.artist) continue;
+        const title = cleanTitle(t.title);
+        out.push({ kind: "ready", track: { ...t, title }, cat, k: key(t.artist, title) });
+      }
+    } catch (e) {
+      console.warn("[deezer] playlist indisponible", id, (e as Error).message);
+    }
+  }
+  return out;
+}
+
+async function fromThemes(
+  categories: string[],
+  wanted: number,
+  duration: number,
+): Promise<{ tracks: Pending[]; decoys: Decoy[] }> {
   const cats = categories.map((c) => CATEGORY_BY_ID[c]).filter(Boolean);
   if (!cats.length) throw new HttpError(400, "Choisis au moins une catégorie");
+  const [recent, perCat] = await Promise.all([
+    recentlyPlayed().catch(() => new Set<string>()),
+    Promise.all(cats.map(candidatesFor)),
+  ]);
+  // file d'attente par catégorie : d'abord les titres pas joués récemment, dans un ordre aléatoire
+  const queues = perCat.map((list) => {
+    const seenHere = new Set<string>();
+    const unique = list.filter((c) => !seenHere.has(c.k) && seenHere.add(c.k));
+    return [...shuffle(unique.filter((c) => !recent.has(c.k))), ...shuffle(unique.filter((c) => recent.has(c.k)))];
+  });
+  const decoys: Decoy[] = perCat.flat().map((c) =>
+    c.kind === "seed"
+      ? { title: c.seed.title, artist: c.seed.artist, category: c.cat.id }
+      : { title: c.track.title, artist: c.track.artist, category: c.cat.id },
+  );
   // tirage équilibré entre catégories, sans doublon
-  const queues = cats.map((c) => shuffle(c.tracks).map((s) => ({ seed: s, cat: c })));
-  const pool: { seed: SeedTrack; cat: (typeof cats)[number] }[] = [];
+  const pool: Candidate[] = [];
   const seen = new Set<string>();
   while (queues.some((q) => q.length)) {
     for (const q of shuffle(queues)) {
       const next = q.shift();
-      if (!next) continue;
-      const k = key(next.seed.artist, next.seed.title);
-      if (seen.has(k)) continue;
-      seen.add(k);
+      if (!next || seen.has(next.k)) continue;
+      seen.add(next.k);
       pool.push(next);
     }
   }
@@ -109,25 +168,40 @@ async function fromThemes(categories: string[], wanted: number, duration: number
   for (let start = 0; start < pool.length && result.length < wanted; ) {
     const batch = pool.slice(start, start + Math.max(4, wanted - result.length + 2));
     start += batch.length;
-    const resolved = await mapLimit(batch, 6, (p) => resolveSeed(p.seed, !!p.cat.workTitle));
-    resolved.forEach((r, i) => {
-      if (!r || result.length >= wanted) return;
-      const { seed, cat } = batch[i];
-      result.push({
+    const resolved = await mapLimit(batch, 4, async (c): Promise<Pending | null> => {
+      if (c.kind === "ready") {
+        return {
+          provider: "deezer",
+          provider_ref: c.track.ref,
+          title: c.track.title,
+          artist: c.track.artist,
+          title_aliases: [],
+          artist_aliases: artistAliases(c.track.artist),
+          category: c.cat.id,
+          cover_url: c.track.coverUrl,
+          start_at: 0,
+          duration,
+        };
+      }
+      const r = await resolveSeed(c.seed, !!c.cat.workTitle);
+      if (!r) return null;
+      return {
         provider: "deezer",
         provider_ref: r.ref,
-        title: seed.title,
-        artist: seed.artist,
-        title_aliases: seed.ta ?? [],
-        artist_aliases: seed.aa ?? [],
-        category: cat.id,
+        title: c.seed.title,
+        artist: c.seed.artist,
+        title_aliases: c.seed.ta ?? [],
+        // on accepte aussi l'interprète réellement entendu (utile pour les reprises de génériques)
+        artist_aliases: [...(c.seed.aa ?? []), ...(normalize(r.artist) !== normalize(c.seed.artist) ? [r.artist] : [])],
+        category: c.cat.id,
         cover_url: r.coverUrl ?? null,
         start_at: 0,
         duration,
-      });
+      };
     });
+    for (const r of resolved) if (r && result.length < wanted) result.push(r);
   }
-  return result;
+  return { tracks: result, decoys };
 }
 
 async function fromPlaylist(playlistId: string, wanted: number, defaultDuration: number): Promise<Pending[]> {
@@ -153,9 +227,10 @@ async function fromPlaylist(playlistId: string, wanted: number, defaultDuration:
 }
 
 /** Propositions du mode QCM : la bonne réponse + 3 leurres plausibles. */
-function addChoices(tracks: Pending[], categories: string[]): GameTrack[] {
-  const decoys: { title: string; artist: string; category: string | null }[] = [
+function addChoices(tracks: Pending[], categories: string[], extra: Decoy[] = []): GameTrack[] {
+  const decoys: Decoy[] = [
     ...tracks.map((t) => ({ title: t.title, artist: t.artist, category: t.category })),
+    ...extra,
     ...CATEGORIES.filter((c) => categories.includes(c.id) || !categories.length).flatMap((c) =>
       c.tracks.map((s) => ({ title: s.title, artist: s.artist, category: c.id })),
     ),
@@ -185,11 +260,11 @@ function addChoices(tracks: Pending[], categories: string[]): GameTrack[] {
 
 export async function buildGameTracks(settings: GameSettings): Promise<GameTrack[]> {
   const wanted = settings.rounds;
-  const pending =
+  const { tracks: pending, decoys } =
     settings.source.type === "themes"
       ? await fromThemes(settings.source.categories, wanted, settings.roundDuration)
-      : await fromPlaylist(settings.source.playlistId, wanted, settings.roundDuration);
+      : { tracks: await fromPlaylist(settings.source.playlistId, wanted, settings.roundDuration), decoys: [] };
   if (!pending.length) throw new HttpError(502, "Impossible de récupérer des extraits musicaux. Réessaie dans un instant.");
   const cats = settings.source.type === "themes" ? settings.source.categories : [];
-  return addChoices(pending, cats);
+  return addChoices(pending, cats, decoys);
 }
