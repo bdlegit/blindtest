@@ -31,6 +31,8 @@ export type Category = {
    * la catégorie : plusieurs centaines de titres en plus des morceaux choisis à la main.
    */
   playlists?: number[];
+  /** nombre approximatif de titres populaires apportés par ces playlists (mesuré, pour l'affichage) */
+  playlistTracks?: number;
   tracks: SeedTrack[];
 };
 
@@ -47,6 +49,7 @@ export const CATEGORIES: Category[] = [
     emoji: "📼",
     gradient: ["#ff2bd6", "#7b2cff"],
     playlists: [867825522, 1913763402, 1743878062, 791349661, 1163842311, 10727755642, 10704004302, 10702272842, 10701318182, 10699860242, 10698676702, 10685554042, 10684010922, 10678781122, 10133312182],
+    playlistTracks: 418,
     tracks: [
       t("Michael Jackson", "Billie Jean"),
       t("a-ha", "Take On Me", { aa: ["aha"] }),
@@ -78,6 +81,7 @@ export const CATEGORIES: Category[] = [
     emoji: "💿",
     gradient: ["#00e5ff", "#7b2cff"],
     playlists: [878989033, 2322259622, 1682663671, 1051470831, 1251125011, 8311123682, 9931111742],
+    playlistTracks: 182,
     tracks: [
       t("Nirvana", "Smells Like Teen Spirit"),
       t("Spice Girls", "Wannabe", { aa: ["The Spice Girls"] }),
@@ -107,6 +111,7 @@ export const CATEGORIES: Category[] = [
     emoji: "📱",
     gradient: ["#b6ff3b", "#00b3ff"],
     playlists: [248297032, 1977689462, 1560256341, 713806955, 751764391, 11837091441, 11837088801, 11837078821, 5361722742],
+    playlistTracks: 280,
     tracks: [
       t("Beyoncé", "Crazy in Love"),
       t("OutKast", "Hey Ya!", { ta: ["Hey Ya"] }),
@@ -138,6 +143,7 @@ export const CATEGORIES: Category[] = [
     emoji: "🎧",
     gradient: ["#ff7a00", "#ff2bd6"],
     playlists: [14917741483, 715215865, 2051712324, 1162725851, 5310925582, 1488687901, 920047905],
+    playlistTracks: 330,
     tracks: [
       t("Pharrell Williams", "Happy", { aa: ["Pharrell"] }),
       t("Mark Ronson", "Uptown Funk", { aa: ["Bruno Mars"] }),
@@ -169,6 +175,7 @@ export const CATEGORIES: Category[] = [
     emoji: "⚡",
     gradient: ["#7b2cff", "#00e5ff"],
     playlists: [13650084141, 11915740641, 8424603822, 9690987002, 741188545],
+    playlistTracks: 257,
     tracks: [
       t("Dua Lipa", "Levitating"),
       t("Harry Styles", "As It Was"),
@@ -199,6 +206,7 @@ export const CATEGORIES: Category[] = [
     emoji: "🎤",
     gradient: ["#ff2b4f", "#7b2cff"],
     playlists: [1182010551, 4676814864, 5175061384, 9563400362, 3272614282, 14055903761],
+    playlistTracks: 312,
     tracks: [
       t("IAM", "Je danse le Mia"),
       t("NTM", "La fièvre", { aa: ["Suprême NTM", "Supreme NTM"] }),
@@ -229,6 +237,7 @@ export const CATEGORIES: Category[] = [
     emoji: "🗽",
     gradient: ["#ffd400", "#ff2bd6"],
     playlists: [1724212365, 4676818664, 7662551722, 12547421383, 1976915302, 2979302822, 15127953583],
+    playlistTracks: 209,
     tracks: [
       t("Eminem", "Without Me"),
       t("50 Cent", "In Da Club", { aa: ["Fifty Cent"] }),
@@ -259,6 +268,7 @@ export const CATEGORIES: Category[] = [
     emoji: "🌍",
     gradient: ["#ff2bd6", "#ffb3f0"],
     playlists: [1036183001, 8326097522, 8282573142, 8512471762, 1282483245],
+    playlistTracks: 263,
     tracks: [
       t("Michael Jackson", "Thriller"),
       t("Madonna", "Hung Up"),
@@ -289,6 +299,7 @@ export const CATEGORIES: Category[] = [
     emoji: "🎸",
     gradient: ["#ff2b2b", "#ff9f1c"],
     playlists: [1306931615, 8621268482, 1728093421, 1419215845, 847814561, 761604441],
+    playlistTracks: 213,
     tracks: [
       t("Queen", "Bohemian Rhapsody"),
       t("AC/DC", "Highway to Hell", { aa: ["ACDC", "AC DC"] }),
@@ -473,6 +484,7 @@ export const CATEGORIES: Category[] = [
     emoji: "🥖",
     gradient: ["#00b3ff", "#ff2b4f"],
     playlists: [791349661, 1051470831, 713806955, 1162725851, 821019291, 944752975],
+    playlistTracks: 203,
     tracks: [
       t("Édith Piaf", "La Vie en rose", { aa: ["Edith Piaf", "Piaf"] }),
       t("Joe Dassin", "Les Champs-Élysées", { ta: ["Champs Elysees"] }),
@@ -504,6 +516,7 @@ export const CATEGORIES: Category[] = [
     emoji: "🔥",
     gradient: ["#ff2bd6", "#ffd400"],
     playlists: [2097558104, 3631248842, 7456464544, 2015058202, 867825522, 878989033, 248297032, 14917741483],
+    playlistTracks: 408,
     tracks: [
       t("Queen", "Don't Stop Me Now"),
       t("Michael Jackson", "Beat It"),
