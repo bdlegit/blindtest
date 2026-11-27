@@ -151,6 +151,13 @@ create policy "players are readable" on public.players for select to anon, authe
 create policy "history is readable"  on public.game_history for select to anon, authenticated using (true);
 -- aucune policy sur les autres tables : inaccessibles avec la clé anon.
 
+-- Droits explicites : les projets Supabase récents n'exposent plus automatiquement
+-- les nouvelles tables aux rôles de l'API.
+grant usage on schema public to anon, authenticated, service_role;
+grant select, insert, update, delete on all tables in schema public to service_role;
+grant usage, select on all sequences in schema public to service_role;
+grant select on public.rooms, public.players, public.game_history to anon, authenticated;
+
 revoke insert, update, delete on public.rooms, public.players, public.game_history from anon, authenticated;
 revoke all on public.room_secrets, public.room_tracks, public.player_secrets,
               public.answers, public.playlists, public.library_tracks from anon, authenticated;
