@@ -15,6 +15,7 @@ import { burst, celebrate } from "@/components/confetti";
 import { api } from "@/lib/client/api";
 import { hostKey, load } from "@/lib/client/storage";
 import { remainingMs, useRoom, useServerNow } from "@/lib/client/useRoom";
+import { useControlChannel } from "@/lib/client/useControlChannel";
 import { rankPlayers, type Player, type RoomState } from "@/lib/game";
 import type { HostAction } from "@/lib/server/engine";
 import { useHostAudio } from "./useHostAudio";
@@ -34,6 +35,18 @@ export default function TvPage({ params }: { params: Promise<{ code: string }> }
   const audio = useHostAudio(code, hostToken);
   const isHost = !!hostToken;
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showRemote, setShowRemote] = useState(false);
+
+  // télécommande : couper / remettre le son de la télé
+  const { setMuted } = audio;
+  const [remoteHello, setRemoteHello] = useState(0);
+  const sendControl = useControlChannel(isHost ? state?.room.id : undefined, (m) => {
+    if (m.type === "mute") setMuted(m.muted);
+    if (m.type === "hello") setRemoteHello((n) => n + 1);
+  });
+  useEffect(() => {
+    sendControl({ type: "mute-state", muted: audio.muted });
+  }, [audio.muted, remoteHello, sendControl]);
 
   const act = useCallback(
     async (action: HostAction) => {
@@ -147,6 +160,7 @@ export default function TvPage({ params }: { params: Promise<{ code: string }> }
                   void act({ action: "start" });
                 }}
                 onKick={(p) => confirm(`Exclure ${p.nickname} ?`) && void act({ action: "kick", playerId: p.id })}
+                onRemote={() => setShowRemote(true)}
               />
             )}
             {phase === "countdown" && <Countdown state={state} remaining={remaining} />}
@@ -176,8 +190,15 @@ export default function TvPage({ params }: { params: Promise<{ code: string }> }
           onNext={() => act({ action: "advance", phase: room.phase, round: room.round_index, force: true })}
           onEnd={() => confirm("Terminer la partie maintenant ?") && act({ action: "end" })}
           onMute={() => audio.setMuted((m) => !m)}
+          onRemote={() => setShowRemote(true)}
         />
       )}
+
+      <AnimatePresence>
+        {isHost && showRemote && hostToken && (
+          <RemoteModal code={code} hostToken={hostToken} onClose={() => setShowRemote(false)} />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {paused && (
@@ -276,12 +297,14 @@ function Lobby({
   isHost,
   onStart,
   onKick,
+  onRemote,
 }: {
   state: RoomState;
   online: Set<string> | null;
   isHost: boolean;
   onStart: () => void;
   onKick: (p: Player) => void;
+  onRemote: () => void;
 }) {
   const { room, players } = state;
   const url = joinUrl(room.code);
@@ -348,7 +371,12 @@ function Lobby({
         <div className="mt-[2vh] flex items-center justify-between gap-4">
           {isHost ? (
             <>
-              <p className="text-[1.1vw] text-muted">Le son sort de cet écran : monte le volume de la télé 🔊</p>
+              <div className="flex flex-col gap-2">
+                <p className="text-[1.1vw] text-muted">Le son sort de cet écran : monte le volume de la télé 🔊</p>
+                <button onClick={onRemote} className="w-fit text-[1.1vw] font-semibold text-cyan hover:underline">
+                  🎛️ Piloter depuis mon téléphone (télécommande)
+                </button>
+              </div>
               <Button size="xl" onClick={onStart} disabled={!players.length}>
                 ▶ Lancer la partie
               </Button>
@@ -487,7 +515,13 @@ function Reveal({ state }: { state: RoomState }) {
               >
                 <PlayerAvatar avatar={p.avatar} color={p.color} size={36} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-bold">{p.nickname}</div>
+                  <div className="flex items-center gap-2 truncate font-bold">
+                    {p.nickname}
+                    {r.hint && <span title="A utilisé le joker" className="text-sm">💡</span>}
+                    {!!r.awarded && (
+                      <span className="rounded-full bg-amber/20 px-2 py-0.5 text-xs font-bold text-amber">✋ accordé</span>
+                    )}
+                  </div>
                   <div className="truncate text-sm text-muted">{r.guess ? `« ${r.guess} »` : "— pas de réponse —"}</div>
                 </div>
                 {room.settings.answerMode === "choices" ? (
@@ -653,6 +687,7 @@ function HostControls({
   onNext,
   onEnd,
   onMute,
+  onRemote,
 }: {
   paused: boolean;
   phase: string;
@@ -661,6 +696,7 @@ function HostControls({
   onNext: () => void;
   onEnd: () => void;
   onMute: () => void;
+  onRemote: () => void;
 }) {
   const nextLabel =
     phase === "playing" ? "⏭ Passer / révéler" : phase === "reveal" ? "⏭ Classement" : phase === "scores" ? "⏭ Manche suivante" : "⏭ Suivant";
@@ -679,10 +715,43 @@ function HostControls({
       <Button variant="ghost" size="sm" onClick={toggleFullscreen}>
         ⛶ Plein écran
       </Button>
+      <Button variant="ghost" size="sm" onClick={onRemote}>
+        🎛️ Télécommande
+      </Button>
       <Button variant="danger" size="sm" onClick={onEnd}>
         ■ Terminer
       </Button>
       <span className="ml-2 hidden text-xs text-muted lg:inline">Espace : pause · → : suivant · M : son · F : plein écran</span>
     </div>
+  );
+}
+
+function RemoteModal({ code, hostToken, onClose }: { code: string; hostToken: string; onClose: () => void }) {
+  const url = typeof window === "undefined" ? "" : `${window.location.origin}/remote/${code}#k=${encodeURIComponent(hostToken)}`;
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="absolute inset-0 z-40 flex items-center justify-center bg-bg/85 backdrop-blur-md"
+    >
+      <motion.div
+        initial={{ scale: 0.9 }}
+        animate={{ scale: 1 }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass flex flex-col items-center gap-5 rounded-[2vw] p-[3vw] text-center"
+      >
+        <h2 className="font-display text-[2.2vw] font-black uppercase">🎛️ Télécommande</h2>
+        <p className="max-w-[32vw] text-[1.1vw] text-muted">
+          Scanne ce code avec <b className="text-ink">ton</b> téléphone pour piloter la partie depuis le canapé. Ne le montre pas aux
+          joueurs : il donne les commandes de l&apos;animateur.
+        </p>
+        <QrCode value={url} size={260} />
+        <Button variant="ghost" onClick={onClose}>
+          Fermer
+        </Button>
+      </motion.div>
+    </motion.div>
   );
 }

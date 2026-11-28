@@ -361,18 +361,23 @@ function Answering({
 
   const flash = (kind: Feedback["kind"], text: string) => setFeedback((f) => ({ kind, text, id: (f?.id ?? 0) + 1 }));
 
-  async function send(payload: { guess?: string; choice?: string }) {
+  const hintChoices = answer?.hintChoices ?? null;
+  const canHint = s.answerMode === "text" && s.hints !== false && !done && !hintChoices;
+
+  async function send(payload: { guess?: string; choice?: string; hint?: boolean }) {
     if (busy) return;
     setBusy(true);
     try {
       const res = await api.answer(code, token, payload);
       onAnswer(res.answer);
       const r = res.result;
-      if (s.answerMode === "choices") {
+      if (payload.hint) {
+        flash("info", "💡 Joker activé : choisis la bonne proposition (points ÷ 2)");
+      } else if (s.answerMode === "choices" || payload.choice) {
         if (r?.correct) {
           vibrate([30, 40, 30]);
           burst(0.6);
-          flash("good", `Bonne réponse ! +${res.answer.points}`);
+          flash("good", payload.choice && s.answerMode === "text" ? "Bonne réponse !" : `Bonne réponse ! +${res.answer.points}`);
         } else {
           vibrate(120);
           flash("bad", "Raté…");
@@ -413,29 +418,7 @@ function Answering({
       </div>
 
       {s.answerMode === "choices" && pr?.choices ? (
-        <div className="grid flex-1 grid-cols-1 gap-3">
-          {pr.choices.map((c, i) => {
-            const colors = ["#ff2bd6", "#00e5ff", "#b6ff3b", "#ffd400"];
-            const chosen = answer?.choice === c.id;
-            return (
-              <motion.button
-                key={c.id}
-                whileTap={{ scale: 0.96 }}
-                disabled={done || busy}
-                onClick={() => send({ choice: c.id })}
-                className="rounded-3xl p-5 text-left text-lg font-bold transition disabled:opacity-100"
-                style={{
-                  background: chosen ? colors[i] : `${colors[i]}1f`,
-                  color: chosen ? "#07050d" : "var(--text)",
-                  boxShadow: `inset 0 0 0 2px ${colors[i]}${chosen ? "" : "88"}${chosen ? `, 0 0 30px ${colors[i]}` : ""}`,
-                  opacity: done && !chosen ? 0.35 : 1,
-                }}
-              >
-                {c.label}
-              </motion.button>
-            );
-          })}
-        </div>
+        <ChoiceButtons choices={pr.choices} chosen={answer?.choice ?? null} disabled={done || busy} onPick={(id) => send({ choice: id })} />
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3">
@@ -450,6 +433,11 @@ function Answering({
               </p>
               <p className="mt-2 text-muted">Réponse révélée à la fin du temps</p>
             </Center>
+          ) : hintChoices ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-center text-sm font-semibold text-amber">💡 Joker : une seule tentative, points divisés par deux</p>
+              <ChoiceButtons choices={hintChoices} chosen={null} disabled={busy} onPick={(id) => send({ choice: id })} />
+            </div>
           ) : (
             <form
               onSubmit={(e) => {
@@ -475,6 +463,16 @@ function Answering({
               <p className="text-center text-xs text-muted">
                 {attemptsLeft} essai{attemptsLeft > 1 ? "s" : ""} restant{attemptsLeft > 1 ? "s" : ""} · tu peux tout taper d&apos;un coup
               </p>
+              {canHint && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => send({ hint: true })}
+                  className="mt-2 rounded-2xl border border-amber/50 bg-amber/10 px-4 py-3 font-bold text-amber transition active:scale-95"
+                >
+                  💡 Voir les propositions <span className="font-normal opacity-80">(points ÷ 2)</span>
+                </button>
+              )}
             </form>
           )}
         </>
@@ -500,6 +498,46 @@ function Answering({
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+const CHOICE_COLORS = ["#ff2bd6", "#00e5ff", "#b6ff3b", "#ffd400"];
+
+function ChoiceButtons({
+  choices,
+  chosen,
+  disabled,
+  onPick,
+}: {
+  choices: { id: string; label: string }[];
+  chosen: string | null;
+  disabled: boolean;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <div className="grid flex-1 grid-cols-1 gap-3">
+      {choices.map((c, i) => {
+        const color = CHOICE_COLORS[i % CHOICE_COLORS.length];
+        const isChosen = chosen === c.id;
+        return (
+          <motion.button
+            key={c.id}
+            whileTap={{ scale: 0.96 }}
+            disabled={disabled || !!chosen}
+            onClick={() => onPick(c.id)}
+            className="rounded-3xl p-5 text-left text-lg font-bold transition disabled:opacity-100"
+            style={{
+              background: isChosen ? color : `${color}1f`,
+              color: isChosen ? "#07050d" : "var(--text)",
+              boxShadow: `inset 0 0 0 2px ${color}${isChosen ? "" : "88"}${isChosen ? `, 0 0 30px ${color}` : ""}`,
+              opacity: chosen && !isChosen ? 0.35 : 1,
+            }}
+          >
+            {c.label}
+          </motion.button>
+        );
+      })}
     </div>
   );
 }
@@ -541,7 +579,9 @@ function MyReveal({ state }: { state: RoomState }) {
       <div className={`font-display mt-8 rounded-3xl px-8 py-5 text-3xl font-black ${ok ? "bg-lime text-[#0b1200] glow-lime" : "bg-surface text-muted"}`}>
         {ok ? `+${mine!.points}` : "0 pt"}
       </div>
-      <p className="mt-3 text-muted">{ok ? "Bien joué !" : "La prochaine sera la bonne 💪"}</p>
+      <p className="mt-3 text-muted">
+        {mine?.awarded ? "✋ Accordé par l'animateur !" : ok ? (mine?.hint ? "Bien joué avec le joker 💡" : "Bien joué !") : "La prochaine sera la bonne 💪"}
+      </p>
     </Center>
   );
 }

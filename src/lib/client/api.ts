@@ -34,7 +34,7 @@ export const api = {
     }),
   join: (code: string, p: { nickname: string; avatar: string; color: string }) =>
     request<{ player: Player; token: string }>(`/api/rooms/${code}/join`, { method: "POST", body: JSON.stringify(p) }),
-  answer: (code: string, token: string, a: { guess?: string; choice?: string }) =>
+  answer: (code: string, token: string, a: { guess?: string; choice?: string; hint?: boolean }) =>
     request<{ answer: MyAnswer; result: { title: boolean; artist: boolean; correct?: boolean } | null }>(
       `/api/rooms/${code}/answer`,
       { method: "POST", body: JSON.stringify(a), headers: { "x-player-token": token } },

@@ -18,6 +18,8 @@ export type GameSettings = {
   /** durée d'écoute / de réponse par manche (s) */
   roundDuration: number;
   maxAttempts: number;
+  /** joker « Voir les propositions » en saisie libre (points divisés par deux) */
+  hints: boolean;
   source: GameSource;
 };
 
@@ -30,6 +32,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   answerMode: "text",
   roundDuration: 25,
   maxAttempts: 5,
+  hints: true,
   source: { type: "themes", categories: ["hits"] },
 };
 
@@ -59,6 +62,10 @@ export type RevealResult = {
   points: number;
   ms: number | null;
   guess: string | null;
+  /** a utilisé le joker « propositions » */
+  hint?: boolean;
+  /** points accordés à la main par l'animateur */
+  awarded?: number;
 };
 
 export type PublicRound = {
@@ -125,7 +132,17 @@ export type MyAnswer = {
   choice: string | null;
   done: boolean;
   lastGuess: string | null;
+  /** joker utilisé : les 4 propositions (visibles uniquement par ce joueur) */
+  hintChoices: Choice[] | null;
 };
+
+/** Valeur stockée dans answers.choice quand le joker est ouvert mais pas encore utilisé. */
+export const HINT_OPENED = "__hint__";
+
+/** Le joker divise les points par deux (arrondi à 5). */
+export function hintPoints(points: number): number {
+  return Math.round(points / 2 / 5) * 5;
+}
 
 export type RoomState = {
   room: Room;

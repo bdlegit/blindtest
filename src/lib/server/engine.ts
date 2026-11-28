@@ -4,10 +4,13 @@ import { checkGuess } from "../match";
 import {
   AVATARS,
   COLORS,
+  HINT_OPENED,
+  hintPoints,
   LIMITS,
   PHASE_MS,
   pointsFor,
   rankPlayers,
+  type Choice,
   type FinalStats,
   type GameSettings,
   type MyAnswer,
@@ -74,6 +77,7 @@ export function sanitizeSettings(input: Partial<GameSettings> | undefined): Game
     answerMode: s.answerMode === "choices" ? "choices" : "text",
     roundDuration: clampInt(s.roundDuration, LIMITS.roundDuration, 25),
     maxAttempts: clampInt(s.maxAttempts, LIMITS.maxAttempts, 5),
+    hints: s.hints !== false,
     source,
   };
 }
@@ -131,16 +135,21 @@ export async function requirePlayer(room: Room, token: string | null): Promise<P
   return p;
 }
 
-function toMyAnswer(a: AnswerRow | null): MyAnswer | null {
+/** Le joueur a-t-il ouvert le joker en saisie libre ? */
+const usedHint = (room: Room, a: Pick<AnswerRow, "choice"> | null | undefined) =>
+  room.settings.answerMode === "text" && !!a?.choice;
+
+function toMyAnswer(a: AnswerRow | null, hintChoices: Choice[] | null = null): MyAnswer | null {
   if (!a) return null;
   return {
     attempts: a.attempts,
     foundTitle: a.found_title,
     foundArtist: a.found_artist,
     points: a.points,
-    choice: a.choice,
+    choice: a.choice === HINT_OPENED ? null : a.choice,
     done: a.done,
     lastGuess: a.guesses.at(-1) ?? null,
+    hintChoices,
   };
 }
 
@@ -164,7 +173,9 @@ export async function getState(code: string, playerToken: string | null): Promis
               "lecture réponse",
             ) as AnswerRow | null)
           : null;
-      me = { player, answer: toMyAnswer(answer) };
+      let hintChoices: Choice[] | null = null;
+      if (answer && usedHint(room, answer)) hintChoices = (await loadTrack(room.id, room.round_index))?.choices ?? null;
+      me = { player, answer: toMyAnswer(answer, hintChoices) };
     }
   }
   return { room, players: players.filter((p) => !p.kicked), serverNow: Date.now(), me };
@@ -256,6 +267,7 @@ async function reveal(room: Room): Promise<Room | null> {
         guess: room.settings.answerMode === "choices"
           ? (track?.choices?.find((c) => c.id === a?.choice)?.label ?? null)
           : (a?.guesses.at(-1) ?? null),
+        hint: usedHint(room, a),
       };
     });
   const public_round: PublicRound = {
@@ -428,7 +440,7 @@ async function checkAllDone(room: Room) {
   }
 }
 
-export async function submitAnswer(room: Room, player: Player, input: { guess?: string; choice?: string }) {
+export async function submitAnswer(room: Room, player: Player, input: { guess?: string; choice?: string; hint?: boolean }) {
   if (room.phase !== "playing") throw new HttpError(409, "Ce n'est pas le moment de répondre");
   if (room.paused_at) throw new HttpError(409, "La partie est en pause");
   const now = Date.now();
@@ -459,7 +471,8 @@ export async function submitAnswer(room: Room, player: Player, input: { guess?: 
         .single(),
       "lecture réponse",
     ) as AnswerRow;
-    if (current.done) return { answer: toMyAnswer(current)!, result: null };
+    const hintChoicesOf = (a: AnswerRow) => (usedHint(room, a) ? (track.choices ?? null) : null);
+    if (current.done) return { answer: toMyAnswer(current, hintChoicesOf(current))!, result: null };
 
     const patch: Partial<AnswerRow> & { updated_at: string } = { updated_at: nowIso(), attempts: current.attempts + 1 };
     let result: { title: boolean; artist: boolean; correct?: boolean } = { title: false, artist: false };
@@ -479,7 +492,40 @@ export async function submitAnswer(room: Room, player: Player, input: { guess?: 
         patch.points = pointsFor(s.pointsTitle + s.pointsArtist, elapsed, durationMs, s.speedBonus);
       }
       result = { title: correct, artist: correct, correct };
+    } else if (input.hint) {
+      // joker : on dévoile les 4 propositions à ce joueur seulement
+      if (s.hints === false) throw new HttpError(409, "Le joker n'est pas activé pour cette partie");
+      if (!track.choices?.length) throw new HttpError(409, "Pas de propositions pour ce morceau");
+      if (current.choice) return { answer: toMyAnswer(current, hintChoicesOf(current))!, result: null };
+      patch.attempts = current.attempts; // ouvrir le joker ne consomme pas d'essai
+      patch.choice = HINT_OPENED;
+    } else if (input.choice !== undefined) {
+      // réponse via le joker : un seul essai, points divisés par deux
+      if (current.choice !== HINT_OPENED) throw new HttpError(409, "Ouvre d'abord le joker");
+      const choice = (input.choice ?? "").toString();
+      const picked = track.choices?.find((c) => c.id === choice);
+      if (!picked) throw new HttpError(400, "Choix invalide");
+      const correct = choice === track.correct_choice;
+      patch.choice = choice;
+      patch.done = true;
+      patch.guesses = [...current.guesses, picked.label].slice(-LIMITS.maxAttempts[1]);
+      if (correct) {
+        let gained = 0;
+        if (!current.found_title) {
+          patch.found_title = true;
+          patch.title_ms = elapsed;
+          gained += pointsFor(s.pointsTitle, elapsed, durationMs, s.speedBonus);
+        }
+        if (!current.found_artist) {
+          patch.found_artist = true;
+          patch.artist_ms = elapsed;
+          gained += pointsFor(s.pointsArtist, elapsed, durationMs, s.speedBonus);
+        }
+        patch.points = current.points + hintPoints(gained);
+      }
+      result = { title: correct && !current.found_title, artist: correct && !current.found_artist, correct };
     } else {
+      if (current.choice === HINT_OPENED) throw new HttpError(409, "Tu as pris le joker : choisis une proposition");
       const guess = (input.guess ?? "").toString().trim().slice(0, LIMITS.guess);
       if (!guess) throw new HttpError(400, "Réponse vide");
       const check = checkGuess(guess, {
@@ -518,7 +564,7 @@ export async function submitAnswer(room: Room, player: Player, input: { guess?: 
 
     await db().rpc("refresh_answered_count", { p_room: room.id, p_round: room.round_index });
     if (updated.done) await checkAllDone(room);
-    return { answer: toMyAnswer(updated)!, result };
+    return { answer: toMyAnswer(updated, hintChoicesOf(updated))!, result };
   }
   throw new HttpError(429, "Doucement ! Réessaie");
 }
@@ -529,6 +575,7 @@ export type HostAction =
   | { action: "pause" }
   | { action: "resume" }
   | { action: "kick"; playerId: string }
+  | { action: "award"; playerId: string; round: number }
   | { action: "end" }
   | { action: "replay" };
 
@@ -564,6 +611,9 @@ export async function hostAction(room: Room, a: HostAction): Promise<void> {
       if (room.phase === "playing") await checkAllDone(room);
       return;
     }
+    case "award":
+      await award(room, a.playerId, a.round);
+      return;
     case "end":
       if (room.phase === "finished" || room.phase === "lobby") return;
       await finish(room);
@@ -596,6 +646,71 @@ export async function hostAction(room: Room, a: HostAction): Promise<void> {
       return;
     }
   }
+}
+
+/**
+ * L'animateur accorde une réponse refusée par la reconnaissance automatique : le joueur
+ * gagne les points de ce qu'il lui manquait (titre et/ou artiste), sans bonus de rapidité,
+ * divisés par deux s'il avait pris le joker. Possible pendant la révélation et le classement.
+ */
+async function award(room: Room, playerId: string, round: number) {
+  if (round !== room.round_index || !["reveal", "scores"].includes(room.phase)) {
+    throw new HttpError(409, "On ne peut plus modifier cette manche");
+  }
+  const rv = room.public_round?.reveal;
+  const entry = rv?.results.find((r) => r.playerId === playerId);
+  if (!rv || !entry) throw new HttpError(404, "Joueur introuvable pour cette manche");
+  if (entry.foundTitle && entry.foundArtist) return;
+  const s = room.settings;
+  let gained = (entry.foundTitle ? 0 : s.pointsTitle) + (entry.foundArtist ? 0 : s.pointsArtist);
+  if (entry.hint) gained = hintPoints(gained);
+  const wasZero = !entry.foundTitle && !entry.foundArtist;
+
+  // 1. on réserve la modification de la salle (évite un double clic qui compterait deux fois)
+  const public_round: PublicRound = {
+    ...room.public_round!,
+    reveal: {
+      ...rv,
+      results: rv.results.map((r) =>
+        r.playerId === playerId
+          ? { ...r, foundTitle: true, foundArtist: true, points: r.points + gained, awarded: (r.awarded ?? 0) + gained }
+          : r,
+      ),
+    },
+  };
+  const claimed = await transition(room, { public_round });
+  if (!claimed) throw new HttpError(409, "La manche vient de changer, réessaie");
+
+  // 2. réponse du joueur et score
+  await db()
+    .from("answers")
+    .upsert(
+      { room_id: room.id, round_index: round, player_id: playerId },
+      { onConflict: "room_id,round_index,player_id", ignoreDuplicates: true },
+    );
+  const answer = must(
+    await db().from("answers").select("*").eq("room_id", room.id).eq("round_index", round).eq("player_id", playerId).single(),
+    "lecture réponse",
+  ) as AnswerRow;
+  must(
+    await db()
+      .from("answers")
+      .update({ found_title: true, found_artist: true, points: answer.points + gained, done: true, updated_at: nowIso() })
+      .eq("id", answer.id),
+    "validation",
+  );
+  const player = must(await db().from("players").select("*").eq("id", playerId).single(), "lecture joueur") as Player;
+  must(
+    await db()
+      .from("players")
+      .update({
+        score: player.score + gained,
+        last_round_points: player.last_round_points + gained,
+        correct_count: player.correct_count + (wasZero ? 1 : 0),
+      })
+      .eq("id", playerId),
+    "validation",
+  );
 }
 
 /** URL de l'extrait à jouer sur la télé (réservé à l'animateur). */

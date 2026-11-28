@@ -148,6 +148,8 @@ async function main() {
   const kicked = await call("GET", `/api/rooms/${code}`, undefined, { "x-player-token": players[2].token });
   check(kicked.data.me?.player.kicked === true && kicked.data.players.length === 2, "exclusion d'un joueur");
 
+  await jokerAndAward();
+
   console.log(failures ? `\n${failures} échec(s)` : "\nTout est vert ✔");
   process.exit(failures ? 1 : 0);
 }
@@ -156,3 +158,65 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
+
+/** Joker « propositions » et validation manuelle par l'animateur. */
+async function jokerAndAward() {
+  console.log("\n— Joker et validation manuelle");
+  const c = await call("POST", "/api/rooms", {
+    name: "Smoke joker",
+    settings: { rounds: 3, roundDuration: 20, speedBonus: false, source: { type: "themes", categories: ["80s"] } },
+  });
+  const H = { "x-host-token": c.data.hostToken };
+  const code = c.data.code;
+  const p1 = (await call("POST", `/api/rooms/${code}/join`, { nickname: "Jo" })).data;
+  const p2 = (await call("POST", `/api/rooms/${code}/join`, { nickname: "Mamie" })).data;
+  const T1 = { "x-player-token": p1.token };
+  const T2 = { "x-player-token": p2.token };
+  const roomId = (await call("GET", `/api/rooms/${code}`)).data.room.id;
+  const { data: tracks } = await admin.from("room_tracks").select("*").eq("room_id", roomId).order("position");
+
+  // manche 1 : Jo prend le joker d'emblée, Mamie se trompe
+  await call("POST", `/api/rooms/${code}/host`, { action: "start" }, H);
+  await call("POST", `/api/rooms/${code}/host`, { action: "advance", phase: "countdown", round: 0, force: true }, H);
+  const opened = await call("POST", `/api/rooms/${code}/answer`, { hint: true }, T1);
+  check(opened.data.answer?.hintChoices?.length === 4, "joker : 4 propositions envoyées au joueur");
+  const pub = (await call("GET", `/api/rooms/${code}`)).data;
+  check(!pub.room.public_round.choices, "joker : propositions absentes de l'état public");
+  const reload = (await call("GET", `/api/rooms/${code}`, undefined, T1)).data;
+  check(reload.me.answer.hintChoices?.length === 4, "joker : propositions retrouvées après rechargement");
+  const typed = await call("POST", `/api/rooms/${code}/answer`, { guess: tracks![0].title }, T1);
+  check(typed.status === 409, "joker : plus de saisie libre une fois le joker pris");
+  const picked = await call("POST", `/api/rooms/${code}/answer`, { choice: tracks![0].correct_choice }, T1);
+  check(picked.data.result?.correct && picked.data.answer.points === 100, `joker : bonne proposition = moitié des points (${picked.data.answer.points}/200)`);
+  const again = await call("POST", `/api/rooms/${code}/answer`, { choice: tracks![0].correct_choice }, T1);
+  check(again.data.answer.points === 100, "joker : une seule tentative");
+  for (let i = 0; i < 5; i++) await call("POST", `/api/rooms/${code}/answer`, { guess: "aucune idée" }, T2);
+  let s = (await call("GET", `/api/rooms/${code}`)).data;
+  check(s.room.phase === "reveal", "révélation quand tout le monde a fini");
+  check(s.room.public_round.reveal.results.find((r: { playerId: string }) => r.playerId === p1.player.id)?.hint === true, "révélation : joker signalé 💡");
+
+  // validation manuelle
+  const notHost = await call("POST", `/api/rooms/${code}/host`, { action: "award", playerId: p2.player.id, round: 0 });
+  check(notHost.status === 403, "accorder : réservé à l'animateur");
+  await call("POST", `/api/rooms/${code}/host`, { action: "award", playerId: p2.player.id, round: 0 }, H);
+  await call("POST", `/api/rooms/${code}/host`, { action: "award", playerId: p2.player.id, round: 0 }, H);
+  s = (await call("GET", `/api/rooms/${code}`)).data;
+  const mamie = s.players.find((p: { id: string }) => p.id === p2.player.id);
+  const res = s.room.public_round.reveal.results.find((r: { playerId: string }) => r.playerId === p2.player.id);
+  check(mamie.score === 200 && mamie.last_round_points === 200, `accorder : +200 pour Mamie, une seule fois (score ${mamie.score})`);
+  check(res.awarded === 200 && res.foundTitle && res.foundArtist, "accorder : visible dans la révélation");
+
+  // manche 2 : Jo trouve l'artiste en tapant, puis prend le joker pour le titre
+  await call("POST", `/api/rooms/${code}/host`, { action: "advance", phase: "reveal", round: 0, force: true }, H);
+  const late = await call("POST", `/api/rooms/${code}/host`, { action: "award", playerId: p1.player.id, round: 0 }, H);
+  check(late.status === 200, "accorder sur une manche close : sans effet");
+  await call("POST", `/api/rooms/${code}/host`, { action: "advance", phase: "scores", round: 0, force: true }, H);
+  await call("POST", `/api/rooms/${code}/host`, { action: "advance", phase: "countdown", round: 1, force: true }, H);
+  const a1 = await call("POST", `/api/rooms/${code}/answer`, { guess: tracks![1].artist }, T1);
+  check(a1.data.answer.foundArtist && a1.data.answer.points === 100, "Jo trouve l'artiste en saisie libre (100)");
+  await call("POST", `/api/rooms/${code}/answer`, { hint: true }, T1);
+  const a2 = await call("POST", `/api/rooms/${code}/answer`, { choice: tracks![1].correct_choice }, T1);
+  check(a2.data.answer.points === 150 && a2.data.answer.foundTitle, `joker après l'artiste : +50 pour le titre (total ${a2.data.answer.points})`);
+  const jo = (await call("GET", `/api/rooms/${code}`)).data.players.find((p: { id: string }) => p.id === p1.player.id);
+  check(jo.score === 100, "scores toujours cachés avant la révélation");
+}
