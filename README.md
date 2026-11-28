@@ -4,6 +4,8 @@ Le blind test musical des soirées entre potes : **la télé joue la musique et 
 
 - Écran télé : lobby avec QR code, compte à rebours, chrono néon, révélation avec pochette, podium, statistiques de fin.
 - Téléphones : rejoindre avec un code ou un QR code, pseudo + avatar, saisie libre (fautes de frappe tolérées) ou choix multiples.
+- Joker 💡 : en saisie libre, un joueur qui sèche peut afficher 4 propositions (une tentative, points divisés par deux).
+- Télécommande 🎛️ : l'animateur pilote la partie depuis son téléphone (pause, passer, son, exclure, terminer, rejouer) et peut **accorder** une réponse refusée par la reconnaissance automatique.
 - 15 catégories prêtes à jouer (~300 titres) + playlists perso (recherche Deezer ou import de vos propres fichiers).
 
 ## Stack
@@ -71,6 +73,7 @@ supabase/migrations/   schéma SQL (tables, RLS, Realtime, bucket de stockage)
 2. Chacun scanne le QR code (ou va sur `/join` et tape le code à 6 caractères).
 3. Sur la télé : **Lancer la partie** (ce clic autorise aussi le son).
 4. Raccourcis télé : `Espace` pause/reprise · `→` passer · `M` couper le son · `F` plein écran.
+5. Télécommande : dans le lobby, « 🎛️ Piloter depuis mon téléphone » affiche un QR code à scanner avec **votre** téléphone (ne le montrez pas aux joueurs : il donne les commandes). Le jeton passe dans le fragment de l'URL (`#k=…`), jamais envoyé au serveur dans les journaux.
 
 ## Développement local
 

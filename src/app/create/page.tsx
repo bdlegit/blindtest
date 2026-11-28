@@ -317,6 +317,16 @@ export default function CreatePage() {
               </div>
             </div>
             {settings.answerMode === "text" && (
+              <div className="sm:col-span-2">
+                <Toggle
+                  on={settings.hints}
+                  onChange={(v) => set("hints", v)}
+                  label="💡 Joker « propositions »"
+                  hint="Un joueur qui sèche peut afficher 4 propositions, pour la moitié des points"
+                />
+              </div>
+            )}
+            {settings.answerMode === "text" && (
               <Slider
                 label="Essais par manche"
                 value={settings.maxAttempts}
